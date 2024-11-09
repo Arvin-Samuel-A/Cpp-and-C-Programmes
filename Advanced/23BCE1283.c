@@ -1,101 +1,145 @@
 #include <stdio.h>
-#include <stdlib.h>
 
-int compare(int arr1[], int arr2[], int n);
-void add(int arr1[], int arr2[], int m);
-void sub(int arr1[], int arr2[], int m);
+int search(int key, int frame_items[], int frame_occupied) {
+    for (int x = 0; x < frame_occupied; x++)
+        if (frame_items[x] == key)
+            return 1;
+    return 0;
+}
 
-int main() {
-    int n, m;
-    scanf("%d", &n);
-    scanf("%d", &m);
-
-    int allocation[n][m], max[n][m], available[m], finish[n], need[n][m], result[n];
-
-    for(int x = 0; x < n; x++) {
-        for(int y = 0; y < m; y++) {
-            scanf("%d", &allocation[x][y]);
-        }
-        for(int y = 0; y < m; y++) {
-            scanf("%d", &max[x][y]);
-            need[x][y] = max[x][y] - allocation[x][y];
-        }
-        finish[x] = 0;
+void reset(int frame_items[], int max_frames) {
+    for (int x = 0; x < max_frames; x++) {
+        frame_items[x] = -1;
     }
-    for(int x = 0; x < m; x++) {
-        scanf("%d", &available[x]);
+}
+
+void printOuterStructure(int max_frames) {
+    printf("Stream\t\t");
+    for (int x = 0; x < max_frames; x++)
+        printf("Frame%d\t\t", x+1);
+}
+
+void printCurrFrames(int item, int frame_items[], int frame_occupied, int max_frames) {
+    printf("\n%d \t\t", item);
+    for (int x = 0; x < max_frames; x++) {
+        if (x < frame_occupied)
+            printf("%d \t\t", frame_items[x]);
+        else
+            printf("- \t\t");
     }
+}
 
-    int r;
-    scanf("%d", &r);
-
-    int request[r][m];
-    int pid[r];
-    for(int x = 0; x < r; x++) {
-        scanf("%d", &pid[x]);
-        for(int y = 0; y < m; y++) {
-            scanf("%d", &request[x][y]);
-        }
-    }
-
-    for(int x = 0; x < r; x++) {
-        if(compare(request[x], need[pid[x]], m) && compare(request[x], available, m)) {
-            sub(available, request[x], m);
-            add(allocation[pid[x]], request[x], m);
-            sub(need[pid[x]], request[x], m);
-        } else {
-            printf("The resources requested by P%d are not available\n", pid[x]);
-        }
-    }
-
-    int is_breaked = 0;
-
-    for(int x = 0; x < n; x++) {
-        int index = -1;
-        for(int y = 0; y < n; y++) {
-            if(!finish[y] && compare(need[y], available, m)) {
-                index = y;
+int predict(int ref_str[], int frame_items[], int refStrLen, int index, int frame_occupied) {
+    int result = -1, farthest = index;
+    for (int x = 0; x < frame_occupied; x++) {
+        int y;
+        for (y = index; y < refStrLen; y++) {
+            if (frame_items[x] == ref_str[y]) {
+                if (y > farthest) {
+                    farthest = y;
+                    result = x;
+                }
                 break;
             }
         }
-        if(index >= 0) {
-            add(available, allocation[index], m);
-            finish[index] = 1;
-            result[x] = index;
+        if (y == refStrLen)
+            return x;
+    }
+    return (result == -1) ? 0 : result;
+}
+
+void fifoPageReplacement(int ref_str[], int refStrLen, int frame_items[], int max_frames) {
+    int frame_occupied = 0, count = 0, y = 0;
+    printOuterStructure(max_frames);
+    for (int x = 0; x < refStrLen; x++) {
+        if (!search(ref_str[x], frame_items, frame_occupied)) {
+            frame_items[y] = ref_str[x];
+            y = (y + 1) % max_frames;
+            count++;
+            printCurrFrames(ref_str[x], frame_items, frame_occupied < max_frames ? ++frame_occupied : frame_occupied, max_frames);
         } else {
-            is_breaked = 1;
-            break;
+            printCurrFrames(ref_str[x], frame_items, frame_occupied, max_frames);
         }
     }
+    printf("\n\nTotal Page Faults (FIFO): %d\n\n", count);
+}
 
-    if(is_breaked) {
-        printf("The Given Processes will lead to a Deadlock\n");
-    } else {
-        printf("The Safe Sequence of the Processes are:\n");
-        for(int x = 0; x < n; x++) {
-            printf("P%d ", result[x]);
+void lruPageReplacement(int ref_str[], int refStrLen, int frame_items[], int max_frames) {
+    int frame_occupied = 0, c1, count = 0, k = 0, c2[20];
+    printOuterStructure(max_frames);
+    for (int x = 0; x < refStrLen; x++) {
+        c1 = 0;
+        for (int y = 0; y < frame_occupied; y++) {
+            if (ref_str[x] != frame_items[y])
+                c1++;
         }
-        printf("\n");
-    }
-}
-
-int compare(int arr1[], int arr2[], int m) {
-    for(int x = 0; x < m; x++) {
-        if(arr1[x] > arr2[x]) {
-            return 0;
+        if (c1 == frame_occupied) {
+            count++;
+            if (frame_occupied < max_frames) {
+                frame_items[frame_occupied++] = ref_str[x];
+                printCurrFrames(ref_str[x], frame_items, frame_occupied, max_frames);
+            } else {
+                int b[20];
+                for (int r = 0; r < max_frames; r++) {
+                    c2[r] = 0;
+                    for (int y = x - 1; y >= 0; y--) {
+                        if (frame_items[r] != ref_str[y])
+                            c2[r]++;
+                        else
+                            break;
+                    }
+                }
+                for (int r = 0; r < max_frames; r++)
+                    b[r] = c2[r];
+                int pos = 0;
+                for (int r = 1; r < max_frames; r++)
+                    if (b[r] > b[pos])
+                        pos = r;
+                frame_items[pos] = ref_str[x];
+                printCurrFrames(ref_str[x], frame_items, frame_occupied, max_frames);
+            }
+        } else {
+            printCurrFrames(ref_str[x], frame_items, frame_occupied, max_frames);
         }
     }
-    return 1;
+    printf("\n\nTotal Page Faults (LRU): %d\n\n", count);
 }
 
-void add(int arr1[], int arr2[], int m) {
-    for(int x = 0; x < m; x++) {
-        arr1[x] += arr2[x];
+void optimalPageReplacement(int ref_str[], int refStrLen, int frame_items[], int max_frames) {
+    int frame_occupied = 0, hits = 0;
+    printOuterStructure(max_frames);
+    for (int x = 0; x < refStrLen; x++) {
+        if (search(ref_str[x], frame_items, frame_occupied)) {
+            hits++;
+            printCurrFrames(ref_str[x], frame_items, frame_occupied, max_frames);
+        } else {
+            if (frame_occupied < max_frames) {
+                frame_items[frame_occupied++] = ref_str[x];
+                printCurrFrames(ref_str[x], frame_items, frame_occupied, max_frames);
+            } else {
+                int pos = predict(ref_str, frame_items, refStrLen, x + 1, frame_occupied);
+                frame_items[pos] = ref_str[x];
+                printCurrFrames(ref_str[x], frame_items, frame_occupied, max_frames);
+            }
+        }
     }
+    printf("\n\nTotal Page Faults (Optimal): %d\n\n", refStrLen - hits);
 }
 
-void sub(int arr1[], int arr2[], int m) {
-    for(int x = 0; x < m; x++) {
-        arr1[x] -= arr2[x];
-    }
+int main() {
+    int ref_str[] = {7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1};
+    int refStrLen = sizeof(ref_str) / sizeof(ref_str[0]);
+    int max_frames = 3;
+    int frame_items[max_frames];
+
+    printf("FIFO Replacement Algorithm:\n");
+    fifoPageReplacement(ref_str, refStrLen, frame_items, max_frames);
+    reset(frame_items, max_frames);
+
+    printf("LRU Replacement Algorithm:\n");
+    lruPageReplacement(ref_str, refStrLen, frame_items, max_frames);
+    reset(frame_items, max_frames);
+
+    printf("Optimal Replacement Algorithm:\n");
+    optimalPageReplacement(ref_str, refStrLen, frame_items, max_frames);
 }

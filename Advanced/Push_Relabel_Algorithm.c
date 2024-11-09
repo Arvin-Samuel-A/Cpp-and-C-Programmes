@@ -73,9 +73,7 @@ void relabel(Graph* g, int u) {
     int min_height = INT_MAX;
     for (int v = 0; v < g->V; v++) {
         if (g->capacity[u][v] - g->flow[u][v] > 0) {
-            omp_set_lock(&g->node_locks[v]);
             min_height = MIN(min_height, g->height[v]);
-            omp_unset_lock(&g->node_locks[v]);
         }
     }
     if (min_height < INT_MAX) {
@@ -116,7 +114,6 @@ int pushRelabelMaxFlow(Graph* g, int source, int sink) {
                         if (g->excess[u] > 0 && g->height[u] == g->height[v] + 1 && g->capacity[u][v] - g->flow[u][v] > 0) {
                             push(g, u, v);
                             if (v != source && v != sink) {
-                                #pragma omp atomic write
                                 active[v] = 1;
                             }
                             work_done = 1;
@@ -154,22 +151,25 @@ void freeGraph(Graph* g) {
 }
 
 int main() {
-    int V = 6;  // Number of vertices
+    int V, E;
+    printf("Enter the number of vertices: ");
+    scanf("%d", &V);
+
     Graph* g = createGraph(V);
 
-    // Add edges (u, v, capacity)
-    addEdge(g, 0, 1, 16);
-    addEdge(g, 0, 2, 13);
-    addEdge(g, 1, 2, 10);
-    addEdge(g, 1, 3, 12);
-    addEdge(g, 2, 1, 4);
-    addEdge(g, 2, 4, 14);
-    addEdge(g, 3, 2, 9);
-    addEdge(g, 3, 5, 20);
-    addEdge(g, 4, 3, 7);
-    addEdge(g, 4, 5, 4);
+    printf("Enter the number of edges: ");
+    scanf("%d", &E);
 
-    int source = 0, sink = 5;
+    printf("Enter the edges with capacities (format: u v capacity):\n");
+    for (int i = 0; i < E; i++) {
+        int u, v, cap;
+        scanf("%d %d %d", &u, &v, &cap);
+        addEdge(g, u, v, cap);
+    }
+
+    int source, sink;
+    printf("Enter the source and sink vertices: ");
+    scanf("%d %d", &source, &sink);
 
     #pragma omp parallel
     {
